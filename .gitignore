@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.ipynb_checkpoints/
+
+# Data is on Kaggle, not in git
+data/*
+!data/.gitkeep
+
+# Local tools
+CLAUDE.md
+CLAUDE.local.md
+.claude/
+kaggle.json
+.kaggle/
+.vscode/
+.idea/
+
+# OS files
+*:Zone.Identifier
+.DS_Store
+Thumbs.db
+
+# Kaggle outputs: only small results go into git
+jobs/runs/*/output/**/*.npy
+jobs/runs/*/output/**/*.npz
+jobs/runs/*/output/**/*.pkl
+jobs/runs/*/output/**/*.log
+jobs/runs/*/output/**/*.zip
