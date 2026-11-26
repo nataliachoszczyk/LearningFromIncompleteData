@@ -10,6 +10,7 @@ The local machine has the code and the records. Kaggle does the heavy computatio
 |---|---|
 | Kaggle account | `nataliachoszczyk` (the personal credentials in `~/.kaggle/`). The project has no `.kaggle/access_token`. |
 | Repository | `https://github.com/nataliachoszczyk/LearningFromIncompleteData.git` (public) |
+| Branch | `part1` (part 1 of the project). Change `BRANCH` in `run.py` for a later branch. |
 | Project folder | the root folder of the repository. Thus the kernels clone the complete repository, with no sparse checkout. |
 | Kernel prefix | `med-`, for example `nataliachoszczyk/med-smoke` |
 | Usual machine | CPU (4 cores). The algorithms (rough sets, kNN imputation) do not need a GPU. Use a GPU only for a job that can use it. |
@@ -256,7 +257,7 @@ import subprocess
 import sys
 
 REPO = "https://github.com/nataliachoszczyk/LearningFromIncompleteData.git"
-BRANCH = "main"
+BRANCH = "part1"
 CLONE = "/tmp/repo"  # Not in the output folder, so the clone is not an output.
 CODENAMES = ["<codename>"]
 

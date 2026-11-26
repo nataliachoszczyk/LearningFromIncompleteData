@@ -8,3 +8,4 @@ pyyaml
 jupyter
 ucimlrepo
 kaggle
+pytest
