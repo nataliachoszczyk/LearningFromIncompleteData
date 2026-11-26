@@ -38,6 +38,21 @@
 - Added `docs/*.pdf` (the papers) and `docs/PLAN.md` (the plan) to `.gitignore`. These files are local only.
 - Decision: the plan has two persons who work one after the other. Person A does the first half (weekend 1), person B the second half (weekend 2). Person A needs nothing from person B. The details are in `docs/PLAN.md`.
 - Natalia does the half A. The work on it starts on 2026-11-26.
+- Downloaded the Kaggle dataset `nataliachoszczyk/med-datasets` into `data/` (6.5 MB, not in git).
+- A1: added `load_dataset(name)`, `numeric_attributes(df)` and `SPECS` to `src/data.py`. The common form:
+  - one row for each record, `NaN` for a missing value, the column `class` at the end,
+  - numeric attributes have the type `float64`, symbolic attributes and the class have the type `category`,
+  - `adult` joins `adult.data` and `adult.test`, `wdbc` has no column `id`.
+- A local test loaded the 6 datasets. The statistics agree with UCI:
+
+  | Dataset | Records | Attributes | Numeric | Missing cells | Incomplete records |
+  |---|---|---|---|---|---|
+  | `voting` | 435 | 16 | 0 | 5.63% | 46.7% |
+  | `hepatitis` | 155 | 19 | 6 | 5.67% | 48.4% |
+  | `mushroom` | 8124 | 22 | 0 | 1.39% | 30.5% |
+  | `car` | 1728 | 6 | 0 | 0% | 0% |
+  | `wdbc` | 569 | 30 | 30 | 0% | 0% |
+  | `adult` | 48842 | 14 | 6 | 0.95% | 7.4% |
 
 ### State for the next session
 
@@ -45,7 +60,7 @@
 - Jobs: `2026-11-26_01_smoke` and `2026-11-26_02_data` are complete. The next job number is 03.
 - `src/data.py` has `DATASETS`, `download_all()` and `data_dir()`. Local data: put a copy of the dataset into `data/` (not in git), or download it with `bash jobs/kaggle.sh datasets download nataliachoszczyk/med-datasets -p data --unzip`.
 - Next steps of the half A (`docs/PLAN.md`):
-  1. A1: `load_dataset(name)` in `src/data.py`.
+  1. A1: complete.
   2. A2: `src/missing.py` (MCAR simulation).
   3. A3: `src/impute.py` (kNN, mean and mode, normalized RMS error).
   4. A4-A5: `src/rough.py` (discretization, tolerance classes, approximations, generalized decision).
