@@ -55,6 +55,16 @@
   | `adult` | 48842 | 14 | 6 | 0.95% | 7.4% |
 - A2: added `src/missing.py` with `add_mcar(df, fraction, seed)`. It removes the given fraction of the known attribute values at random and never removes the class. It returns the new table and a boolean mask of the removed values. The mask gives the true values for the error of an imputation.
 - A local test on `car`, `wdbc` and `voting` (0%, 5%, 30%, 50%): the removed fraction is correct, the class and the types of the columns do not change, the same seed gives the same table.
+- Decision: the kNN imputation uses the Gower distance on the attributes that the two records both have. A numeric attribute gives |x - y| / range. A symbolic attribute gives 0 or 1. The weight of a neighbour is 1 / distance. A numeric value is the weighted mean, a symbolic value is the weighted mode.
+- Decision: the error of an imputation has two parts. `nrmse` is the RMS error on the numeric attributes, with each attribute divided by its standard deviation. `error_rate` is the fraction of wrong symbolic values. Troyanskaya et al. divide by the mean of one table, but our attributes have different scales.
+- A3: added `src/impute.py` with `impute_mean_mode(df)`, `impute_knn(df, k)` and `imputation_error(true, imputed, removed)`. The kNN calculates the distances in blocks, so the memory stays small. The time is O(incomplete records x records x attributes).
+- A local test (seed 0):
+  - `wdbc`: kNN is better than the mean (nrmse 0.51-0.55 for k = 5-10 at 5-20%, mean 0.97). k = 1 is the worst kNN.
+  - `voting`: kNN is better than the mode (error rate 0.20-0.25, mode 0.43-0.45).
+  - `car`: kNN is not better than the mode. Each combination of the attribute values occurs once in `car`, so the attributes are independent and the neighbours give no information.
+  - `hepatitis`: kNN is better on the symbolic attributes, but worse than the mean on the numeric attributes. The dataset is small and the numeric attributes are skewed.
+  - `adult`: kNN with k = 10 on the natural missing values takes 35 s on the local CPU. On 10000 complete records with 5% MCAR it takes 9 s.
+- Problem: the local machine has no PDF tools, so the text of the papers cannot be read automatically.
 
 ### State for the next session
 
@@ -64,7 +74,7 @@
 - Next steps of the half A (`docs/PLAN.md`):
   1. A1: complete.
   2. A2: complete.
-  3. A3: `src/impute.py` (kNN, mean and mode, normalized RMS error).
+  3. A3: complete.
   4. A4-A5: `src/rough.py` (discretization, tolerance classes, approximations, generalized decision).
   5. A6: tests and a Kaggle CPU job with the run times.
   6. A7-A9: `docs/design.md`, the presentation of part 1, chapters 1, 2, 5 and 8 of the final documentation.
