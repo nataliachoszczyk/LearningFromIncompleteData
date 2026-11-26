@@ -88,18 +88,77 @@
 - Fixed the docstring of `impute_knn`: the weight 1 / distance is our selection, not a formula of the paper.
 - Decision: the design document of part 1 is in Polish. Renamed `docs/design.md` to `docs/SUMMARY.md` and translated it. The final documentation and the presentations are also in Polish. The README is in English.
 - Added the corrections from the papers to `docs/SUMMARY.md`: the notation of Kryszkiewicz (S_A(x), α_AT(x, y), Δ*(x)), the differences from Troyanskaya et al. and the expected reducts and rules of Table 2.
+- A9: added `docs/DOKUMENTACJA.md` (Polish), the final documentation with 9 chapters. Chapters 1, 2, 5 and 8 are complete. Chapters 3, 4, 6, 7 and 9 have only a heading for person B.
+- Checked the facts of chapter 5 on the data: `protime` has 43.2% missing values, `veil_type` has one value, `mushroom` has missing values only in `stalk_root`, `adult` only in `workclass`, `occupation` and `native_country`.
+- Result: `voting.names` tells that "?" is not an unknown value, but a vote that is not "yea" or "nay". Chapter 5 tells this and why we use "?" as a missing value.
+- A8: made the presentation of part 1 in Canva (14 slides, Polish, white background, no decoration): title, problem, 4 strategies, tolerance relation, reducts and rules, kNN imputation, datasets, technologies, structure, data structures, efficiency, test plan, status, bibliography.
+
+- Renamed the documents, so that the name tells the deadline:
+  - `docs/DESIGN.md`: the design of the implementation for part 1 (2026-12-17). Before, `docs/SUMMARY.md`.
+  - `docs/SUMMARY.md`: the final documentation with 9 chapters for part 2 (2027-01-21). Before, `docs/DOKUMENTACJA.md`.
+- Saved the edits of the presentation of part 1 in Canva (design `DAHcDKYk1rw`, title "Wnioskowanie z danych").
 
 ### State for the next session
 
 - Branch: `part1` (pushed). The Kaggle account is `nataliachoszczyk`. The data is in the private dataset `nataliachoszczyk/med-datasets`.
 - Jobs: `01_smoke`, `02_data` and `03_timing` are complete. The next job number is 04.
-- `src/data.py` has `DATASETS`, `download_all()` and `data_dir()`. Local data: put a copy of the dataset into `data/` (not in git), or download it with `bash jobs/kaggle.sh datasets download nataliachoszczyk/med-datasets -p data --unzip`.
-- Next steps of the half A (`docs/PLAN.md`):
-  1. A1: complete.
-  2. A2: complete.
-  3. A3: complete.
-  4. A4-A5: complete.
-  5. A6: complete.
-  6. A7: complete (`docs/SUMMARY.md`, Polish).
-  7. A8-A9: the presentation of part 1, chapters 1, 2, 5 and 8 of the final documentation.
-- Open decisions for A1-A5: the method of the discretization, the distance and the weights of kNN for symbolic attributes, the form of the bit sets for the tolerance classes.
+- Local data: download it with `bash jobs/kaggle.sh datasets download nataliachoszczyk/med-datasets -p data --unzip` (Windows: give `-p` a Windows path, `cygpath -w`).
+- Run the tests with `.venv/Scripts/python.exe -m pytest -q tests` (15 tests, approximately 6 s).
+
+#### Half A (person A): complete
+
+| Step | Result |
+|---|---|
+| A1-A5 | `src/data.py`, `src/missing.py`, `src/impute.py`, `src/rough.py` |
+| A6 | `tests/test_core.py`, job `03_timing` |
+| A7 | `docs/DESIGN.md` (Polish), the design of the complete implementation, also of B1-B4 |
+| A8 | presentation of part 1 in Canva (14 slides, Polish) |
+| A9 | `docs/SUMMARY.md`, chapters 1, 2, 5 and 8 |
+
+Decisions of half A (details in `docs/DESIGN.md`):
+
+- Discretization: equal-frequency, 4 intervals as default. The cut points come from the training records (`cut_points`, then `discretize`).
+- kNN: Gower distance on the attributes that the two records both have, weight 1 / distance, weighted mean or weighted mode.
+- Error of an imputation: `nrmse` (each numeric attribute divided by its standard deviation) and `error_rate` (symbolic attributes).
+- Tolerance classes: bit sets of `uint64` words, n x ceil(n / 64).
+- In `voting`, "?" is a missing value. `voting.names` tells that "?" is a third position, not an unknown value. `docs/SUMMARY.md`, chapter 5.2, tells this.
+
+#### Before 2026-12-17 (part 1): tasks of the team
+
+1. Agree the scope of the project with the teacher. A team of two must do this (`docs/task.md`, "Liczność grup").
+2. Agree the date of the consultation with the teacher.
+3. Add the names of the authors to the title slide in Canva. Optional: use the font of the titles also for the bullet points.
+4. Export the presentation from Canva (`.pptx` or PDF).
+5. Upload `docs/DESIGN.md` (as PDF) to https://leon.pw.edu.pl/course/view.php?id=2333 before the presentation.
+
+#### Half B (person B): open work
+
+Code (the interfaces are in `docs/DESIGN.md`, sections 3.4-3.6 and 5.3):
+
+| Step | Work | Result |
+|---|---|---|
+| B1 | `discernibility(codes, general, x)`: α_AT(x, y) for the y with d(y) ∉ ∂_AT(x), as an attribute mask. `local_reduct(codes, general, x)`: greedy set cover, then remove the attributes that are not necessary. `reduct(codes, general)` for the complete table. | `src/rough.py` |
+| B2 | `rules(codes, d, general)`: one rule for each object from its local reduct and ∂_AT(x). Skip the conditions (a, *). Join the duplicate rules and add their support. | `src/rough.py` |
+| B3 | `RuleClassifier`: `fit` and `predict`. A rule matches a record if each condition (a, v) has a(z) = v or a(z) = *. Vote with the support. No match: the most frequent class. | `src/classify.py` |
+| B4 | `prepare` (strategies S1-S4) and `evaluate` (`add_mcar`, stratified 10-fold cross-validation). S2 removes only training records. | `src/experiment.py` |
+| B5 | Kaggle jobs (from number 04): MCAR 0-50% with S1-S4 on all datasets, natural missing values, k = 1-50, 2-8 intervals, 5 or more seeds. Use a sample of `adult` (kNN takes 434 s on all records). | `jobs/runs/` |
+| B6 | Figures and tables of the results. | figures, `docs/RESULTS.md` |
+
+Tests to add to `tests/test_core.py`:
+
+- Table 2 of Kryszkiewicz (1998), Example 5.2: the reduct of the table is {Size, Max-Speed}. The local reduct of objects 1 and 2 is {Max-Speed}, of objects 3-6 it is {Size}.
+- Example 4.2: the rules are (X, low) → good, (S, compact) → poor, (S, full) → good ∨ excel.
+
+Documentation (Polish):
+
+| Step | Work | Result |
+|---|---|---|
+| B7 | Chapters 3 (implementation, from `docs/DESIGN.md`), 4 (user guide), 6 (results), 7 (conclusions) and 9 (source code) | `docs/SUMMARY.md` |
+| B8 | Presentation of part 2 (main topics of the project) and a demonstration of the software | `.pptx`, demonstration notebook |
+| end | `README.md` in English. Upload `docs/SUMMARY.md` (as PDF) to leon before 2027-01-21. | `README.md` |
+
+Questions for the experiments of person B:
+
+- Compare "?" in `voting` as a missing value and as a third value.
+- Records with many missing values make the tolerance classes very large (`voting`: one record with 16 missing values). Show this effect in the results.
+- `car`: kNN is not better than the mode, because the attributes are independent. Explain this in chapter 7.

@@ -1,287 +1,304 @@
-# Projekt implementacji
+# Wnioskowanie z danych niekompletnych: zbiory przybliżone i imputacja kNN
+Natalia Choszczyk, Aleksandra Samsel
 
-Projekt z przedmiotu Metody Eksploracji Danych (MED), część 1: wnioskowanie z danych niekompletnych.
+Dokumentacja końcowa projektu z przedmiotu Metody Eksploracji Danych (MED).
 
-Dokument opisuje całą implementację, także moduły, które jeszcze nie powstały (oznaczone „planowane”).
+## 1. Wprowadzenie i definicja problemu
 
-## 1. Zakres
+### 1.1. Dane niekompletne
 
-Projekt porównuje 4 strategie postępowania z brakującymi wartościami w zadaniu klasyfikacji:
+W danych rzeczywistych część wartości atrybutów jest nieznana. Powody są różne:
 
-| Nr | Strategia | Źródło |
-|---|---|---|
-| S1 | Zbiory przybliżone z relacją tolerancji na surowych danych | Kryszkiewicz (1998) |
-| S2 | Usunięcie niepełnych rekordów treningowych, potem S1 | Kryszkiewicz (1998), rozdz. 6 (*removing examples' method*) |
-| S3 | Imputacja średnią lub modą, potem S1 | metoda bazowa (*row average* u Troyanskiej i in.) |
-| S4 | Imputacja kNN, potem S1 | Troyanskaya i in. (2001) |
+- pomiaru nie wykonano albo był zbyt kosztowny,
+- respondent nie odpowiedział na pytanie,
+- wartość zgubiono przy przetwarzaniu.
 
-Wszystkie 4 strategie używają tego samego klasyfikatora: reguł decyzyjnych z modelu zbiorów przybliżonych. Porównanie pokazuje więc tylko wpływ sposobu obsługi braków.
+Większość metod klasyfikacji zakłada, że tabela jest kompletna. Dane z brakami trzeba więc najpierw przekształcić albo użyć metody, która działa bezpośrednio na brakach.
 
-Testy mierzą:
+W projekcie wartość brakującą oznaczamy symbolem `*` (w kodzie `NaN`). Zakładamy, jak Kryszkiewicz (1998), że prawdziwa wartość należy do dziedziny atrybutu, ale nie wiemy, która.
 
-- jakość klasyfikacji i imputacji przy różnym odsetku braków (0–50%),
-- wpływ parametrów (k w kNN, liczba przedziałów dyskretyzacji),
-- czas działania i skalowalność względem liczby rekordów i liczby atrybutów.
+### 1.2. Mechanizm braków
 
-## 2. Technologie
+Little i Rubin wyróżniają trzy mechanizmy powstawania braków:
 
-| Element | Wybór | Uzasadnienie |
-|---|---|---|
-| Język | Python 3.12 (lokalnie), 3.13 (Kaggle) | popularny, dobre biblioteki do tabel i tablic |
-| Tabele | pandas | wczytywanie plików UCI, typy kolumn |
-| Tablice | numpy | operacje wektorowe, zbiory bitowe na `uint64` |
-| Testy | pytest | krótkie testy każdego modułu |
-| Obliczenia | Kaggle CPU (4 rdzenie, 30 GB RAM) | lokalny komputer jest słaby |
-| Kontrola wersji | git, GitHub (publiczne repozytorium) | kernele Kaggle klonują kod |
+- **MCAR** (*missing completely at random*): brak nie zależy od żadnych danych,
+- **MAR** (*missing at random*): brak zależy tylko od wartości znanych,
+- **MNAR** (*missing not at random*): brak zależy od samej nieznanej wartości.
 
-Projekt nie używa gotowych bibliotek do zbiorów przybliżonych ani do imputacji. Wszystkie algorytmy są naszą implementacją.
+Eksperymenty z symulowanymi brakami używają mechanizmu MCAR. Z kompletnej tabeli losowo usuwamy zadany ułamek wartości atrybutów, a każda znana wartość ma to samo prawdopodobieństwo usunięcia. Klasa nigdy nie jest usuwana. Ten sam schemat stosują Troyanskaya i in. (2001). Mechanizm braków naturalnych w zbiorach UCI nie jest znany.
 
-## 3. Struktura implementacji
+### 1.3. Definicja problemu
 
-```
-src/
-  data.py        wczytanie 6 zbiorów danych we wspólnej postaci
-  missing.py     symulacja braków (MCAR)
-  impute.py      imputacja kNN, imputacja średnią/modą, błąd imputacji
-  rough.py       dyskretyzacja, klasy tolerancji, aproksymacje, decyzja uogólniona,
-                 redukty i reguły decyzyjne (planowane)
-  classify.py    klasyfikator regułowy (planowany)
-  experiment.py  4 strategie z walidacją krzyżową (planowany)
-tests/
-  test_core.py   testy wszystkich modułów
-jobs/runs/       jeden folder na każde zadanie Kaggle (run.py, kernel-metadata.json, małe wyniki)
-```
+Dana jest tablica decyzyjna DT = (O, AT ∪ {d}):
 
-Przepływ danych:
+- O to skończony zbiór obiektów (rekordów),
+- AT to zbiór atrybutów warunkowych,
+- d to atrybut decyzyjny (klasa), który nie ma braków.
 
-```
-load_dataset --> add_mcar --> [S2: usunięcie | S3: impute_mean_mode | S4: impute_knn] -->
-cut_points / discretize --> encode --> tolerance_classes --> generalized_decision -->
-redukty względne dla obiektów --> reguły decyzyjne --> klasyfikacja --> dokładność
-```
+Wartości atrybutów warunkowych mogą być nieznane. Zadanie polega na nauczeniu klasyfikatora na części obiektów i przewidywaniu klasy pozostałych obiektów, które także mogą mieć braki.
 
-### 3.1. `src/data.py`
+### 1.4. Cel projektu
 
-| Funkcja | Opis |
+Projekt łączy dwa warianty tematu „Wnioskowanie z niepełnych danych i wiedzy częściowej”:
+
+- **7.1:** zbiory przybliżone dla danych niekompletnych (Kryszkiewicz 1998),
+- **7.3:** imputacja kNN (Troyanskaya i in. 2001).
+
+Porównujemy 4 strategie postępowania z brakami:
+
+| Nr | Strategia |
 |---|---|
-| `download_all(out)` | Pobiera 6 archiwów zip z UCI. Zapisuje `manifest.json` z rozmiarami i skrótami SHA-256. |
-| `data_dir()` | Znajduje dane na Kaggle (`/kaggle/input`) albo lokalnie (`data/`). |
-| `load_dataset(name)` | Zwraca zbiór we wspólnej postaci (rozdz. 4.1). |
-| `numeric_attributes(df)` | Zwraca nazwy atrybutów liczbowych. |
+| S1 | Zbiory przybliżone z relacją tolerancji na surowych danych |
+| S2 | Usunięcie niepełnych rekordów treningowych, potem S1 |
+| S3 | Imputacja średnią lub modą, potem S1 |
+| S4 | Imputacja kNN, potem S1 |
 
-`SPECS` to słownik z opisem każdego zbioru: pliki, nazwy kolumn, kolumna klasy, kolumny liczbowe.
+Wszystkie strategie używają tego samego klasyfikatora regułowego ze zbiorów przybliżonych. Różnica wyników pokazuje więc tylko wpływ sposobu obsługi braków.
 
-### 3.2. `src/missing.py`
+Zgodnie z treścią zadania badamy:
 
-| Funkcja | Opis |
-|---|---|
-| `add_mcar(df, fraction, seed)` | Losowo usuwa zadany ułamek znanych wartości atrybutów. Każda wartość ma to samo prawdopodobieństwo usunięcia (MCAR). Klasa się nie zmienia. Zwraca nową tabelę i maskę usuniętych wartości. |
+- odporność algorytmu na różny poziom niekompletności danych (0–50% braków),
+- jakość wnioskowania przy różnych strategiach obsługi braków,
+- czas wykonania dla różnych wartości parametrów (k, liczba przedziałów dyskretyzacji, odsetek braków),
+- wpływ parametrów na wyniki,
+- skalowalność względem liczby rekordów i liczby atrybutów.
 
-To ten sam schemat, którego używają Troyanskaya i in.: z kompletnych danych usuwa się losowo 1–20% wartości, a potem porównuje oszacowania z prawdziwymi wartościami.
+Testy wykonujemy na 6 publicznych zbiorach danych z repozytorium UCI.
 
-### 3.3. `src/impute.py`
+## 2. Charakterystyka algorytmów
 
-| Funkcja | Krok u Troyanskiej i in. (2001) | Opis |
-|---|---|---|
-| `impute_mean_mode(df)` | metoda bazowa (*row average*) | Średnia dla atrybutu liczbowego, moda dla symbolicznego. |
-| `_encode(df)` | przygotowanie | Wartości liczbowe jako float, symboliczne jako kody kategorii, `NaN` dla braku. |
-| `_gower_distances(values, is_numeric, rows)` | 1. podobieństwo do innych rekordów | Odległość Gowera po atrybutach znanych w obu rekordach (rozdz. 5.1). |
-| `impute_knn(df, k)` | 2. K najbliższych rekordów, które mają wartość brakującego atrybutu; 3. średnia ważona | Waga 1/odległość. Średnia ważona (liczbowe), ważona moda (symboliczne). Gdy brak sąsiadów: średnia/moda. |
-| `imputation_error(true, imputed, removed)` | ocena (*normalized RMS error*) | `nrmse` dla atrybutów liczbowych, `error_rate` dla symbolicznych. |
+### 2.1. Zbiory przybliżone dla danych niekompletnych (Kryszkiewicz 1998)
 
-### 3.4. `src/rough.py`
+#### Relacja tolerancji
 
-Oznaczenia za Kryszkiewicz (1998). Tablica decyzyjna to DT = (O, AT ∪ {d}), a `*` oznacza wartość brakującą.
+W klasycznej teorii zbiorów przybliżonych (Pawlak 1991) obiekty x i y są nierozróżnialne względem zbioru atrybutów A ⊆ AT, gdy mają te same wartości wszystkich atrybutów z A. Relacja nierozróżnialności IND(A) jest relacją równoważności i dzieli O na rozłączne klasy.
 
-| Funkcja | Definicja u Kryszkiewicz (1998) | Opis |
-|---|---|---|
-| `cut_points(df, bins)`, `discretize(df, cuts)` | przygotowanie (artykuł zakłada tylko wartości symboliczne) | Przedziały o równej liczności wyznaczone ze znanych wartości. |
-| `encode(df)` | DT = (O, AT ∪ {d}) | Macierz kodów, -1 oznacza `*`. Wektor kodów decyzji. |
-| `pack`, `unpack`, `count` | zbiory obiektów | Zbiory bitowe ze słów `uint64` (rozdz. 4.2). |
-| `tolerance_classes(codes, A)` | SIM(A) = {(x, y) ∈ O × O: ∀a ∈ A, a(x) = a(y) ∨ a(x) = * ∨ a(y) = *}, S_A(x) = {y ∈ O: (x, y) ∈ SIM(A)} | Klasa tolerancji każdego obiektu jako zbiór bitowy (rozdz. 5.2). |
-| `lower_approximation(classes, X)` | A̲X = {x ∈ O: S_A(x) ⊆ X} | Operacje bitowe na każdym wierszu. |
-| `upper_approximation(classes, X)` | ĀX = {x ∈ O: S_A(x) ∩ X ≠ ∅} | Operacje bitowe na każdym wierszu. |
-| `generalized_decision(classes, d)` | ∂_A(x) = {i: i = d(y), y ∈ S_A(x)} | Macierz logiczna obiekty × decyzje. |
-| `discernibility(codes, general, x)` (planowana, B1) | α_AT(x, y) = {a ∈ AT: (x, y) ∉ SIM({a})}, czyli a(x) ≠ *, a(y) ≠ * i a(x) ≠ a(y); tylko dla y z d(y) ∉ ∂_AT(x) | Wiersz x macierzy rozróżnialności jako maska atrybutów (`uint64`) dla każdego y. |
-| `local_reduct(codes, general, x)` (planowana, B1) | redukt względny dla x: minimalny A ⊆ AT, dla którego ∂_A(x) = ∂_AT(x); implikant pierwszy funkcji Δ*(x) = Π_{y: d(y) ∉ ∂_AT(x)} Σ α_AT(x, y) | Zachłanne pokrycie zbioru: dodaje atrybut, który występuje w największej liczbie niepokrytych α. Potem usuwa atrybuty zbędne. |
-| `reduct(codes, general)` (planowana, B1) | redukt względny DT: minimalny A ⊆ AT, dla którego ∂_A = ∂_AT; implikant pierwszy Δ* = Π_{(x, y): d(y) ∉ ∂_AT(x)} Σ α_AT(x, y) | Ta sama metoda zachłanna na wszystkich parach (x, y). |
-| `rules(codes, d, general)` (planowana, B2) | reguła optymalna dla x: ∧_{a ∈ A} (a, a(x)) → ∨_{w ∈ ∂_AT(x)} (d, w), gdzie A to redukt względny dla x | Jedna reguła z reduktu każdego obiektu. Warunek (a, *) jest zawsze spełniony, więc go pomijamy. Reguła jest pewna, gdy \|∂_AT(x)\| = 1, w przeciwnym razie jest możliwa. Duplikaty reguł łączymy, a ich wsparcia sumujemy. |
+Przy brakach nie wiemy, czy dwa obiekty mają tę samą wartość. Kryszkiewicz zastępuje więc IND(A) relacją podobieństwa:
 
-Wyznaczenie wszystkich reduktów wymaga wszystkich implikantów pierwszych. Jest to wykładnicze w liczbie atrybutów, dlatego projekt używa heurystyki zachłannej.
+SIM(A) = {(x, y) ∈ O × O : ∀a ∈ A, a(x) = a(y) ∨ a(x) = * ∨ a(y) = *}.
 
-### 3.5. `src/classify.py` (planowany, B3)
+Obiekty x i y są podobne, gdy nie da się z pewnością powiedzieć, że się różnią. SIM(A) jest zwrotna i symetryczna, ale nie musi być przechodnia, więc jest relacją tolerancji. Zachodzi też SIM(A) = ∩_{a ∈ A} SIM({a}) (własność 2.1).
 
-| Funkcja | Opis |
-|---|---|
-| `RuleClassifier(bins)` | Przechowuje punkty podziału, reguły i najczęstszą klasę zbioru treningowego. |
-| `fit(df)` | `cut_points`, `discretize`, `encode`, `tolerance_classes`, `generalized_decision`, `rules`. |
-| `predict(df)` | Reguła pasuje do rekordu z, jeśli dla każdego warunku (a, v) zachodzi a(z) = v albo a(z) = `*`. Każda pasująca reguła dodaje swoje wsparcie każdej decyzji ze swojej prawej strony. Wygrywa decyzja z największą sumą. Gdy żadna reguła nie pasuje, wynikiem jest najczęstsza klasa. |
+Klasa tolerancji obiektu x to zbiór obiektów do niego podobnych:
 
-### 3.6. `src/experiment.py` (planowany, B4)
+S_A(x) = {y ∈ O : (x, y) ∈ SIM(A)}.
 
-| Funkcja | Opis |
-|---|---|
-| `prepare(train, test, strategy, k)` | Stosuje S1–S4 (rozdz. 1). S2 usuwa tylko rekordy treningowe. S3 i S4 imputują atrybuty wszystkich rekordów, ale nie używają klasy. |
-| `evaluate(name, fraction, strategy, seed, folds=10, k=10, bins=4)` | `add_mcar`, stratyfikowana walidacja krzyżowa, `prepare`, `RuleClassifier`. Zwraca dokładność, pokrycie (odsetek rekordów testowych, do których pasuje jakaś reguła), liczbę reguł i czas. |
+W odróżnieniu od klas równoważności klasy tolerancji mogą na siebie nachodzić i nie tworzą podziału O.
 
-## 4. Struktury danych
+#### Aproksymacje
 
-### 4.1. Dane źródłowe
+Dla zbioru obiektów X ⊆ O i zbioru atrybutów A:
 
-`load_dataset` zwraca `pandas.DataFrame`:
+- dolna aproksymacja A̲X = {x ∈ O : S_A(x) ⊆ X} to obiekty, które na pewno należą do X,
+- górna aproksymacja ĀX = {x ∈ O : S_A(x) ∩ X ≠ ∅} to obiekty, które mogą należeć do X.
 
-- jeden wiersz to jeden rekord, jedna kolumna to jeden atrybut, kolumna `class` jest ostatnia,
-- atrybut liczbowy ma typ `float64`, brak to `NaN`,
-- atrybut symboliczny i klasa mają typ `category`, brak to `NaN` (kod -1).
+Zachodzi A̲X ⊆ X ⊆ ĀX.
 
-| Zbiór | Rekordy | Atrybuty (liczbowe) | Brakujące komórki | Niepełne rekordy | Klasy |
+#### Decyzja uogólniona
+
+Decyzja uogólniona obiektu x to zbiór decyzji obiektów do niego podobnych:
+
+∂_A(x) = {i : i = d(y), y ∈ S_A(x)}.
+
+Tablica jest spójna (deterministyczna), gdy |∂_AT(x)| = 1 dla każdego x. W przeciwnym razie jest niespójna.
+
+#### Przykład
+
+Tablica 2 z artykułu opisuje 6 samochodów. Atrybuty to cena (P), przebieg (M), rozmiar (S) i prędkość maksymalna (X), a decyzja to przyspieszenie (d):
+
+| Samochód | P | M | S | X | d |
 |---|---|---|---|---|---|
-| `voting` | 435 | 16 (0) | 5,63% | 46,7% | 2 |
-| `hepatitis` | 155 | 19 (6) | 5,67% | 48,4% | 2 |
-| `mushroom` | 8124 | 22 (0) | 1,39% | 30,5% | 2 |
-| `car` | 1728 | 6 (0) | 0% | 0% | 4 |
-| `wdbc` | 569 | 30 (30) | 0% | 0% | 2 |
-| `adult` | 48842 | 14 (6) | 0,95% | 7,4% | 2 |
+| 1 | high | high | full | low | good |
+| 2 | low | * | full | low | good |
+| 3 | * | * | compact | high | poor |
+| 4 | high | * | full | high | good |
+| 5 | * | * | full | high | excel. |
+| 6 | low | high | full | * | good |
 
-Maska z `add_mcar` to logiczna tablica `numpy` (rekordy × atrybuty). Wskazuje pozycje prawdziwych wartości dla `imputation_error`.
+Klasy tolerancji to:
 
-### 4.2. Struktury danych algorytmów
+- S(1) = {1},
+- S(2) = {2, 6},
+- S(3) = {3},
+- S(4) = {4, 5},
+- S(5) = {4, 5, 6},
+- S(6) = {2, 5, 6}.
 
-| Struktura | Typ i kształt | Pamięć | Użycie |
-|---|---|---|---|
-| kody atrybutów | `int32`, n × m, -1 to `*` | 4nm B | wszystkie funkcje zbiorów przybliżonych |
-| kody decyzji | `int32`, n | 4n B | decyzja uogólniona, reguły |
-| zbiór obiektów | `uint64`, ⌈n/64⌉ słów, bit y to obiekt y | n/8 B | X, S_A(x), klasy decyzyjne |
-| klasy tolerancji | `uint64`, n × ⌈n/64⌉ | n²/8 B (`adult`: 299 MB) | aproksymacje, decyzja uogólniona |
-| T(a, v) | `uint64`, (liczba wartości + 1) × ⌈n/64⌉ dla każdego atrybutu | suma wartości × n/8 B | budowa klas tolerancji |
-| decyzja uogólniona | `bool`, n × liczba decyzji | n × liczba decyzji B | redukty, reguły |
-| wiersz macierzy rozróżnialności | `uint64`, n, bit a to atrybut a (m ≤ 64) | 8n B | redukt względny dla obiektu |
-| reguła | warunki (indeks atrybutu, kod wartości), zbiór decyzji (maska bitowa), wsparcie | mała | klasyfikator |
-| blok odległości kNN | `float64`, blok × n | najwyżej 5 mln wartości (40 MB) | imputacja kNN |
+Decyzje uogólnione to {good} dla obiektów 1 i 2, {poor} dla obiektu 3 oraz {good, excel.} dla obiektów 4, 5 i 6. Dla klasy X_good = {1, 2, 4, 6} dolna aproksymacja to {1, 2}, a górna to {1, 2, 4, 5, 6}.
 
-Zbiory bitowe przyspieszają liczenie klas tolerancji: jedno AND dwóch słów 64-bitowych porównuje 64 obiekty naraz. Liczność zbioru daje `numpy.bitwise_count`.
+#### Redukty
 
-## 5. Algorytmy
+Redukt względny tablicy decyzyjnej to minimalny zbiór atrybutów A ⊆ AT, który zachowuje decyzję uogólnioną wszystkich obiektów: ∂_A = ∂_AT. Redukt względny dla obiektu x to minimalny A ⊆ AT, dla którego ∂_A(x) = ∂_AT(x). Redukty dla obiektów pozwalają budować krótsze reguły.
 
-### 5.1. Imputacja kNN (Troyanskaya i in. 2001)
+Redukty wyznacza się z funkcji rozróżnialności. Niech α_AT(x, y) będzie zbiorem atrybutów a, dla których (x, y) ∉ SIM({a}), czyli a(x) ≠ *, a(y) ≠ * i a(x) ≠ a(y). Funkcja rozróżnialności dla obiektu x ma postać:
 
-Dla każdego rekordu x z brakami:
+Δ*(x) = Π_{y : d(y) ∉ ∂_AT(x)} Σ α_AT(x, y),
 
-1. Policz odległość od x do wszystkich rekordów. Odległość używa tylko atrybutów znanych w obu rekordach. Odległość Gowera: |x_a − y_a| / rozstęp(a) dla atrybutu liczbowego, 0 albo 1 dla symbolicznego, średnia po wspólnych atrybutach.
-2. Dla każdego brakującego atrybutu a wybierz k najbliższych rekordów, które mają wartość a.
-3. Oszacuj a(x) jako średnią ważoną (liczbowe) albo ważoną modę (symboliczne) z k wartości. Waga to 1/odległość.
+gdzie iloczyn oznacza koniunkcję, a suma alternatywę zmiennych odpowiadających atrybutom. Implikanty pierwsze Δ*(x) to redukty względne dla x. Funkcja rozróżnialności całej tablicy Δ* to koniunkcja po wszystkich parach (x, y) z d(y) ∉ ∂_AT(x).
 
-Różnice względem artykułu:
+Kryszkiewicz zauważa, że dla tablic niekompletnych funkcja rozróżnialności ma od razu postać koniunkcyjną (CNF). Znalezienie wszystkich implikantów pierwszych jest jednak wykładnicze w liczbie atrybutów. Dlatego w implementacji używamy heurystyki zachłannej. Problem to pokrycie zbioru: każde α_AT(x, y) musi zawierać co najmniej jeden wybrany atrybut. W każdym kroku dodajemy atrybut, który pokrywa najwięcej niepokrytych α, a na końcu usuwamy atrybuty zbędne.
 
-- Artykuł dotyczy tylko danych liczbowych (ekspresja genów) i używa odległości euklidesowej. Nasze zbiory są mieszane, dlatego używamy odległości Gowera.
-- Artykuł mówi tylko, że wkład sąsiada jest „ważony podobieństwem”, i nie podaje wzoru. My używamy wagi 1/odległość.
-- *Row average* w artykule to średnia z wiersza (genu) po wszystkich eksperymentach. U nas atrybuty mają różne znaczenia, więc średnia z rekordu nie ma sensu. Odpowiednikiem jest średnia/moda atrybutu (kolumny).
-- Artykuł dzieli błąd RMS przez średnią wartość całej kompletnej macierzy. Nasze atrybuty mają różne skale, więc błąd każdego atrybutu dzielimy przez jego odchylenie standardowe.
+Dla tablicy 2 reduktem względnym jest {S, X}. Reduktem dla obiektów 1 i 2 jest {X}, a dla obiektów 3–6 jest {S}.
 
-Artykuł podaje złożoność O(m²n) dla m genów i n eksperymentów, a najlepsze wyniki daje k = 10–20. To zgadza się z naszą złożonością O(n_inc · n · m) (rozdz. 6).
+#### Reguły decyzyjne
 
-### 5.2. Klasy tolerancji (Kryszkiewicz 1998)
+Reguła optymalna dla obiektu x z reduktem względnym A ma postać:
 
-Własność 2.1 z artykułu: SIM(A) = ∩_{a ∈ A} SIM({a}). Na niej opiera się algorytm. Dla każdego atrybutu a i wartości v budujemy zbiór bitowy T(a, v) = {y: a(y) = v albo a(y) = *}. Wtedy:
+∧_{a ∈ A} (a, a(x)) → ∨_{w ∈ ∂_AT(x)} (d, w).
 
-S_A(x) = ∩_{a ∈ A, a(x) ≠ *} T(a, a(x)).
+Część decyzyjna reguły optymalnej jest zawsze równa decyzji uogólnionej obiektu. Problem budowy reguł sprowadza się więc do redukcji atrybutów warunkowych. Reguła jest pewna, gdy |∂_AT(x)| = 1. W przeciwnym razie jest możliwa.
 
-Macierz powstaje blokami wierszy, więc tablice pomocnicze zajmują mało pamięci.
+Z reduktów tablicy 2 powstają trzy reguły zamiast sześciu:
 
-### 5.3. Redukty i reguły (planowane)
+- (X, low) → (d, good),
+- (S, compact) → (d, poor),
+- (S, full) → (d, good) ∨ (d, excel.).
 
-1. Policz ∂_AT(x) dla każdego obiektu.
-2. Dla każdego obiektu x policz α_AT(x, y) dla y z d(y) ∉ ∂_AT(x), jako maski atrybutów.
-3. Znajdź redukt względny dla x metodą zachłannego pokrycia zbioru.
-4. Zbuduj regułę x z jego reduktu i z ∂_AT(x).
+Reguły pozostają prawdziwe po zastąpieniu dowolnych braków dowolnymi wartościami.
 
-Według Kryszkiewicz (rozdz. 6) reguły deterministyczne tej metody są pewne w każdym uzupełnieniu tablicy. Metoda usuwania przykładów (S2) może natomiast dać fałszywe reguły pewne. Eksperymenty sprawdzą ten efekt.
+#### Porównanie z innymi metodami (rozdz. 6 artykułu)
 
-## 6. Efektywność
+Kryszkiewicz porównuje swoje podejście z dwiema metodami z systemu LERS:
 
-Oznaczenia: n to liczba rekordów, m liczba atrybutów, n_inc liczba niepełnych rekordów, k liczba sąsiadów, D liczba decyzji.
+- **Zastępowanie przykładów:** obiekt z brakiem zastępuje się zbiorem obiektów z każdą możliwą wartością. Metoda daje wszystkie reguły pewne w pierwotnej tablicy.
+- **Usuwanie przykładów:** obiekty z brakami się usuwa. Metoda może dać fałszywe reguły pewne, czyli pewne w tablicy po usunięciu, ale niepewne w pierwotnej.
 
-| Operacja | Czas | Pamięć |
+Reguły deterministyczne metody tolerancyjnej są podzbiorem reguł pewnych pierwotnej tablicy. Strategia S2 w naszym projekcie odpowiada usuwaniu przykładów.
+
+#### Klasyfikacja nowych obiektów
+
+Artykuł nie opisuje klasyfikacji nowych obiektów. Stosujemy dopasowanie zgodne z relacją tolerancji: reguła pasuje do obiektu z, gdy dla każdego warunku (a, v) zachodzi a(z) = v albo a(z) = *. Każda pasująca reguła głosuje na decyzje ze swojej prawej strony z wagą równą swojemu wsparciu. Gdy żadna reguła nie pasuje, wynikiem jest najczęstsza klasa.
+
+#### Dyskretyzacja
+
+Relacja tolerancji wymaga atrybutów symbolicznych. Atrybuty liczbowe dzielimy na przedziały o równej liczności (kwantyle), domyślnie 4. Punkty podziału wyznaczamy tylko ze znanych wartości zbioru treningowego. Brak pozostaje brakiem.
+
+### 2.2. Imputacja kNN (Troyanskaya i in. 2001)
+
+Troyanskaya i in. porównali trzy metody uzupełniania braków w danych z mikromacierzy DNA:
+
+- KNNimpute (k najbliższych sąsiadów),
+- SVDimpute (rozkład według wartości szczególnych),
+- średnią z wiersza (*row average*).
+
+KNNimpute okazała się najdokładniejsza i najbardziej odporna na rosnący odsetek braków.
+
+#### Algorytm
+
+Niech rekord x ma brak w atrybucie a. Algorytm ma trzy kroki:
+
+1. Wśród rekordów, które mają wartość atrybutu a, znajdź k rekordów najbardziej podobnych do x na pozostałych atrybutach.
+2. Policz średnią ważoną ich wartości a. Wkład każdego sąsiada jest ważony jego podobieństwem do x.
+3. Wstaw średnią jako oszacowanie a(x).
+
+Autorzy sprawdzili korelację Pearsona, odległość euklidesową i minimalizację wariancji. Wybrali odległość euklidesową, bo po logarytmowaniu danych była wystarczająco dokładna. Najlepsze wyniki dawało k = 10–20. Błąd był mało wrażliwy na k w tym zakresie. Złożoność obliczeniowa to O(m²n) dla m genów i n eksperymentów.
+
+#### Ocena błędu
+
+Z kompletnej macierzy autorzy usuwali losowo 1–20% wartości, uzupełniali je i porównywali z oryginałem. Miarą był znormalizowany błąd RMS: pierwiastek średniego kwadratu różnicy między macierzą uzupełnioną a oryginalną, podzielony przez średnią wartość kompletnych danych.
+
+#### Adaptacja do danych mieszanych
+
+Artykuł dotyczy wyłącznie danych liczbowych. Nasze zbiory mają atrybuty liczbowe i symboliczne, więc wprowadzamy cztery zmiany:
+
+| Element | Artykuł | Projekt |
 |---|---|---|
-| `load_dataset` | O(nm) | O(nm) |
-| `add_mcar` | O(nm) | O(nm) |
-| `impute_mean_mode` | O(nm) | O(nm) |
-| `impute_knn` | O(n_inc · n · m) | O(blok · n) |
-| `tolerance_classes` | O(m · n²/64) | O(n²/8) |
-| aproksymacja jednego zbioru | O(n²/64) | O(n) |
-| `generalized_decision` | O(D · n²/64) | O(nD) |
-| redukt względny jednego obiektu (planowany) | O(nm + nm²) | O(n) |
-| reguły wszystkich obiektów (planowane) | O(n²m²) | O(nm) |
-| `predict` dla t rekordów (planowany) | O(t · liczba reguł · m) | O(t · liczba reguł / 8) |
+| Odległość | euklidesowa | Gowera: \|x_a − y_a\| / rozstęp(a) dla atrybutu liczbowego, 0 lub 1 dla symbolicznego, średnia po atrybutach znanych w obu rekordach |
+| Waga sąsiada | „ważona podobieństwem”, bez wzoru | 1 / odległość |
+| Oszacowanie | średnia ważona | średnia ważona (liczbowe), ważona moda (symboliczne) |
+| Normalizacja błędu | przez średnią całej macierzy | błąd każdego atrybutu dzielony przez jego odchylenie standardowe; dla symbolicznych odsetek błędów |
 
-Klasy tolerancji nie są wąskim gardłem. Najwolniejsza jest imputacja kNN, gdy wiele rekordów jest niepełnych. Wśród kroków planowanych najwolniejsze są reguły dla wszystkich obiektów, dlatego dla `adult` trzeba będzie użyć próbki rekordów.
+*Row average* to w artykule średnia z wiersza (genu) po wszystkich eksperymentach. U nas atrybuty jednego rekordu mają różne znaczenia, więc odpowiednikiem jest średnia (lub moda) atrybutu, czyli kolumny.
 
-### 6.1. Zmierzone czasy
+## 3. Opis implementacji
 
-Zadanie `timing` (`jobs/runs/2026-11-26_03_timing/`) zmierzyło czasy na Kaggle CPU (4 rdzenie, Python 3.13, numpy 2.1.3). Każda wartość to mediana z 3 ziaren. Odsetek braków MCAR wynosi 10%, k = 10.
+*Rozdział w przygotowaniu (osoba B). Podstawą jest projekt implementacji w `docs/DESIGN.md`.*
 
-Liczba rekordów (`adult`, rekordy kompletne, 14 atrybutów):
+## 4. Instrukcja użytkownika
 
-| Rekordy | kNN (s) | Klasy tolerancji (s) | Średnia \|S(x)\| |
-|---|---|---|---|
-| 1000 | 0,17 | 0,001 | 1,8 |
-| 2000 | 0,62 | 0,003 | 2,8 |
-| 5000 | 4,7 | 0,011 | 5,0 |
-| 10000 | 18,7 | 0,063 | 9,3 |
-| 20000 | 82,5 | 0,37 | 17,2 |
-| 45222 | 434 | 1,76 | 38,4 |
+*Rozdział w przygotowaniu (osoba B).*
 
-Przy wzroście z 20000 do 45222 rekordów (× 2,26) czas kNN rośnie × 5,3, a czas klas tolerancji × 4,8. Oba wyniki zgadzają się z O(n²), bo 2,26² = 5,1. Dla porównania: Troyanskaya i in. podają 3,23 min dla 6153 genów i 14 eksperymentów przy 10% braków (C++, Pentium III 500 MHz).
+## 5. Charakterystyka zbiorów danych
 
-Liczba atrybutów (`wdbc` 569 rekordów, `mushroom` 8124 rekordy):
+### 5.1. Wybór zbiorów
 
-| Zbiór | Atrybuty | kNN (s) | Klasy tolerancji (s) | Średnia \|S(x)\| |
-|---|---|---|---|---|
-| `wdbc` | 5 / 10 / 20 / 30 | 0,015 / 0,035 / 0,086 / 0,128 | 0,0004 / 0,0006 / 0,0013 / 0,0016 | 21,4 / 2,5 / 1,0 / 1,0 |
-| `mushroom` | 5 / 10 / 15 / 22 | 2,7 / 6,8 / 12,1 / 18,1 | 0,016 / 0,025 / 0,039 / 0,050 | 233 / 84 / 19,5 / 6,5 |
+Używamy 6 publicznych zbiorów z UCI Machine Learning Repository (licencja CC BY 4.0). Wybór pokrywa różne typy atrybutów, rozmiary i rodzaje braków:
 
-Czas rośnie w przybliżeniu liniowo z m. Im więcej atrybutów, tym mniejsze klasy tolerancji.
+| Zbiór | Rekordy | Atrybuty | Liczbowe | Brakujące komórki | Niepełne rekordy | Klasy | Rozkład klas |
+|---|---|---|---|---|---|---|---|
+| `voting` | 435 | 16 | 0 | 5,63% | 46,7% | 2 | democrat 267, republican 168 |
+| `hepatitis` | 155 | 19 | 6 | 5,67% | 48,4% | 2 | live 123, die 32 |
+| `mushroom` | 8124 | 22 | 0 | 1,39% | 30,5% | 2 | edible 4208, poisonous 3916 |
+| `car` | 1728 | 6 | 0 | 0% | 0% | 4 | unacc 1210, acc 384, good 69, vgood 65 |
+| `wdbc` | 569 | 30 | 30 | 0% | 0% | 2 | benign 357, malignant 212 |
+| `adult` | 48842 | 14 | 6 | 0,95% | 7,4% | 2 | ≤50K 37155, >50K 11687 |
 
-Odsetek braków (`car` 1728 rekordów, `mushroom` 8124 rekordy):
+| Zbiór | Rola w eksperymentach |
+|---|---|
+| `voting` | relacja tolerancji bezpośrednio na naturalnych brakach |
+| `hepatitis` | porównanie strategii na małym zbiorze mieszanym z naturalnymi brakami |
+| `mushroom` | skalowalność względem liczby rekordów i atrybutów, naturalne braki w jednym atrybucie |
+| `car` | odporność na symulowane braki MCAR 5–50% |
+| `wdbc` | błąd imputacji kNN dla różnych k, skalowalność względem liczby atrybutów |
+| `adult` | czas działania dla dużej liczby rekordów |
 
-| Odsetek | 0% | 10% | 20% | 30% | 40% | 50% |
-|---|---|---|---|---|---|---|
-| `car` kNN (s) | 0,004 | 0,10 | 0,21 | 0,28 | 0,31 | 0,33 |
-| `car` średnia \|S(x)\| | 1 | 10 | 47 | 134 | 297 | 535 |
-| `mushroom` kNN (s) | 5,5 | 18,2 | 21,7 | 24,8 | 27,8 | 30,9 |
-| `mushroom` średnia \|S(x)\| | 1 | 6,5 | 26 | 78 | 212 | 563 |
+### 5.2. Opis zbiorów
 
-- Czas kNN rośnie z liczbą niepełnych rekordów n_inc.
-- Czas klas tolerancji nie zależy od odsetka braków (`car` 0,001 s, `mushroom` 0,05 s).
-- Klasy tolerancji rosną bardzo szybko z odsetkiem braków. Przy 50% jedna klasa w `car` obejmuje 31% wszystkich rekordów. Decyzja uogólniona ma wtedy więcej wartości, a reguły stają się mniej pewne.
+**Congressional Voting Records (`voting`).** Głosowania 435 kongresmenów USA z 1984 r. w 16 sprawach. Każdy atrybut ma wartości y (za) i n (przeciw). Wartość `?` oznacza brak głosu „za” lub „przeciw”: obecność bez głosu, wstrzymanie się z powodu konfliktu interesów albo nieobecność. Klasa to partia. W zbiorze 46,7% rekordów ma co najmniej jeden brak. Jeden rekord ma braki we wszystkich 16 atrybutach.
 
-Liczba sąsiadów k = 1–50 nie wpływa na czas kNN (`wdbc`: 0,13 s dla każdego k). Kosztowne jest liczenie odległości, a nie wybór sąsiadów.
+Opis zbioru zaznacza, że `?` nie oznacza wartości nieznanej, tylko trzecią postawę. Brak głosu może więc zależeć od poglądów kongresmena, co odpowiada mechanizmowi MNAR. W projekcie traktujemy `?` jako brak, bo właśnie taki przypadek naturalnych braków chcemy zbadać. Dla porównania można też potraktować `?` jako trzecią wartość atrybutu.
 
-## 7. Plan testów
+**Hepatitis (`hepatitis`).** Dane 155 pacjentów z zapaleniem wątroby. Zbiór ma 13 atrybutów binarnych (np. płeć, sterydy, zmęczenie, powiększona wątroba) i 6 liczbowych (wiek, bilirubina, fosfataza alkaliczna, SGOT, albumina, czas protrombinowy). Klasa to przeżycie (1 = zgon, 2 = przeżycie). Najwięcej braków ma czas protrombinowy (43% rekordów). Atrybuty liczbowe mają rozkłady skośne.
 
-### 7.1. Testy kodu (`tests/test_core.py`)
+**Mushroom (`mushroom`).** Opisy 8124 hipotetycznych grzybów z 23 gatunków. Zbiór ma 22 atrybuty symboliczne (kształt i kolor kapelusza, zapach, blaszki, trzon, pierścień, siedlisko). Klasa to jadalny lub trujący. Wszystkie braki dotyczą atrybutu `stalk_root` (30,5% rekordów). Atrybut `veil_type` ma jedną wartość.
 
-- `load_dataset`: liczby rekordów, atrybutów i atrybutów liczbowych zgadzają się z opisami UCI.
-- `add_mcar`: ułamek usuniętych wartości jest poprawny, klasa i typy się nie zmieniają, to samo ziarno daje tę samą tabelę.
-- `impute_knn`: po imputacji nie ma braków, typy się nie zmieniają, błąd jest mniejszy niż dla średniej/mody.
-- `tolerance_classes`: dla tablicy 2 z Kryszkiewicz (1998) dostajemy klasy tolerancji, decyzje uogólnione i aproksymacje z przykładów 2.1 i 4.1. Na 4 zbiorach zbiory bitowe są identyczne z bezpośrednim liczeniem SIM.
-- Planowane: redukty i reguły dla tablicy 2 zgadzają się z przykładami 4.2 i 5.2. Redukt DT to {Size, Max-Speed}, redukt względny obiektów 1–2 to {Max-Speed}, a obiektów 3–6 to {Size}. Reguły to (X, low) → (d, good), (S, compact) → (d, poor), (S, full) → (d, good) ∨ (d, excel.).
+**Car Evaluation (`car`).** Ocena 1728 samochodów z hierarchicznego modelu decyzyjnego. Zbiór ma 6 atrybutów porządkowych: cena zakupu, koszt utrzymania, liczba drzwi, liczba osób, bagażnik i bezpieczeństwo. Klasa ma 4 wartości. Zbiór zawiera każdą kombinację wartości atrybutów dokładnie raz, więc atrybuty są niezależne. Dlatego sąsiedzi rekordu nie niosą informacji o jego brakującej wartości.
 
-### 7.2. Eksperymenty (Kaggle CPU)
+**Breast Cancer Wisconsin Diagnostic (`wdbc`).** Cechy jąder komórkowych z obrazów biopsji 569 guzów piersi. Dziesięć cech podstawowych to promień, tekstura, obwód, pole, gładkość, zwartość, wklęsłość, punkty wklęsłe, symetria i wymiar fraktalny. Każda cecha występuje w 3 wersjach: średnia, błąd standardowy i najgorsza wartość, co daje 30 atrybutów liczbowych. Klasa to łagodny lub złośliwy. Zbiór jest kompletny, a atrybuty są silnie skorelowane, co sprzyja imputacji kNN.
 
-| Badanie | Zbiory | Parametry | Miary |
-|---|---|---|---|
-| Odporność na braki | wszystkie 6 (`adult`: próbka) | MCAR 0, 5, 10, 20, 30, 40, 50%; strategie S1–S4 | dokładność, pokrycie, liczba reguł |
-| Naturalne braki | `voting`, `hepatitis`, `mushroom`, `adult` | strategie S1–S4 | dokładność, pokrycie |
-| Jakość imputacji | `wdbc`, `hepatitis`, `voting`, `car` | MCAR 5–50%; k = 1, 5, 10, 20, 50 | nrmse, odsetek błędów |
-| Dyskretyzacja | `wdbc`, `hepatitis` | 2, 3, 4, 6, 8 przedziałów | dokładność |
-| Skalowalność (rekordy) | `adult` | 1000–45222 rekordów | czas |
-| Skalowalność (atrybuty) | `wdbc`, `mushroom` | 5–30 atrybutów | czas |
+**Adult (`adult`).** Dane ze spisu ludności USA z 1994 r. o 48842 osobach (połączone pliki `adult.data` i `adult.test`). Zbiór ma 6 atrybutów liczbowych (wiek, waga próby, liczba lat nauki, zysk i strata kapitałowa, godziny pracy) i 8 symbolicznych (m.in. rodzaj zatrudnienia, wykształcenie, zawód, kraj). Klasa to dochód powyżej lub poniżej 50 tys. USD rocznie. Braki występują w atrybutach `workclass`, `occupation` i `native_country`.
 
-Każdy wynik to średnia z co najmniej 5 ziaren `add_mcar` i stratyfikowanej 10-krotnej walidacji krzyżowej.
+### 5.3. Wstępne przygotowanie
+
+Funkcja `load_dataset` sprowadza każdy zbiór do wspólnej postaci:
+
+- jeden wiersz na rekord, kolumna `class` na końcu,
+- brak to `NaN`; w plikach UCI brak oznacza `?`,
+- atrybuty liczbowe mają typ `float64`, symboliczne i klasa typ `category`,
+- w `adult` usuwamy pierwszy wiersz pliku testowego i kropkę na końcu klasy (np. `<=50K.`),
+- w `wdbc` pomijamy kolumnę identyfikatora.
+
+### 5.4. Obserwacje wstępne
+
+- **Wrażliwość na rekordy z wieloma brakami.** W `voting` rekord z 16 brakami jest podobny do wszystkich rekordów. Należy więc do każdej klasy tolerancji, a jego klasa wchodzi do decyzji uogólnionej każdego obiektu. W efekcie tylko 33% rekordów ma jednoznaczną decyzję. Po usunięciu rekordów z co najmniej 8 brakami ten odsetek rośnie do 98%.
+- **Wzrost klas tolerancji.** Przy symulowanych brakach MCAR średnia liczność klasy tolerancji w `car` wynosi 1 przy 0% braków, 134 przy 30% i 535 przy 50%.
+- **Jakość imputacji zależy od struktury danych.** Na `wdbc` i `voting` kNN ma wyraźnie mniejszy błąd niż średnia lub moda. Na `car` (atrybuty niezależne) kNN nie jest lepszy od mody.
+
+## 6. Wyniki eksperymentów
+
+*Rozdział w przygotowaniu (osoba B). Zmierzone czasy algorytmów są w rozdz. 6.1 dokumentu `docs/DESIGN.md`.*
+
+## 7. Wnioski
+
+*Rozdział w przygotowaniu (osoba B).*
 
 ## 8. Bibliografia
 
-- Kryszkiewicz, M. (1998). Rough set approach to incomplete information systems. *Information Sciences*, 112(1–4), 39–49.
-- Troyanskaya, O., Cantor, M., Sherlock, G., Brown, P., Hastie, T., Tibshirani, R., Botstein, D., Altman, R. B. (2001). Missing value estimation methods for DNA microarrays. *Bioinformatics*, 17(6), 520–525.
-- Dua, D., Graff, C. (2019). UCI Machine Learning Repository. University of California, Irvine.
+1. Kryszkiewicz, M. (1998). Rough set approach to incomplete information systems. *Information Sciences*, 112(1–4), 39–49.
+2. Troyanskaya, O., Cantor, M., Sherlock, G., Brown, P., Hastie, T., Tibshirani, R., Botstein, D., Altman, R. B. (2001). Missing value estimation methods for DNA microarrays. *Bioinformatics*, 17(6), 520–525.
+3. Pawlak, Z. (1991). *Rough Sets: Theoretical Aspects of Reasoning about Data*. Kluwer Academic Publishers, Dordrecht.
+4. Little, R. J. A., Rubin, D. B. (2019). *Statistical Analysis with Missing Data* (3rd ed.). Wiley.
+5. Gower, J. C. (1971). A general coefficient of similarity and some of its properties. *Biometrics*, 27(4), 857–871.
+6. Chmielewski, M. R., Grzymała-Busse, J. W., Peterson, N. W., Than, S. (1993). The rule induction system LERS – a version for personal computers. *Foundations of Computing and Decision Sciences*, 18(3–4), 181–212.
+7. Dua, D., Graff, C. (2019). UCI Machine Learning Repository. University of California, Irvine. https://archive.ics.uci.edu
+8. Zbiory danych UCI (strony zbiorów w UCI Machine Learning Repository):
+   - Congressional Voting Records: https://archive.ics.uci.edu/dataset/105
+   - Hepatitis: https://archive.ics.uci.edu/dataset/46
+   - Mushroom: https://archive.ics.uci.edu/dataset/73
+   - Car Evaluation: https://archive.ics.uci.edu/dataset/19
+   - Breast Cancer Wisconsin (Diagnostic): https://archive.ics.uci.edu/dataset/17
+   - Adult: https://archive.ics.uci.edu/dataset/2
+
+## 9. Kod źródłowy
+
+*Rozdział w przygotowaniu (osoba B). Kod jest w folderze `src/`, testy w `tests/`.*
