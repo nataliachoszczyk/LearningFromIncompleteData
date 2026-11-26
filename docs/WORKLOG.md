@@ -65,6 +65,14 @@
   - `hepatitis`: kNN is better on the symbolic attributes, but worse than the mean on the numeric attributes. The dataset is small and the numeric attributes are skewed.
   - `adult`: kNN with k = 10 on the natural missing values takes 35 s on the local CPU. On 10000 complete records with 5% MCAR it takes 9 s.
 - Problem: the local machine has no PDF tools, so the text of the papers cannot be read automatically.
+- Decision: the discretization is equal-frequency (quantiles) with 4 intervals as default. It does not use the class. The cut points come from the known values. `cut_points` and `discretize` are separate functions, so the cut points of the training records also apply to the test records.
+- Decision: a tolerance class is a bit set of uint64 words. For each attribute a and value v, the bit set S(a, v) has the records with a = v or a missing. I(x) is the AND of S(a, a(x)). The time is O(|B| n^2 / 64), the memory is n^2 / 8 bytes.
+- A4-A5: added `src/rough.py` with `cut_points`, `discretize`, `encode`, `pack`, `unpack`, `count`, `tolerance_classes(codes, attributes)`, `lower_approximation`, `upper_approximation` and `generalized_decision`.
+- A local test:
+  - The cars of Table 2 in Kryszkiewicz (1998) give the tolerance classes and the generalized decisions of the paper. The lower approximation of "good" is {1, 2}, the upper approximation is {1, 2, 4, 5, 6}.
+  - On `voting`, `car`, `hepatitis` and `wdbc` (with MCAR), the bit sets are equal to a direct calculation of SIM, also for a subset of the attributes.
+  - Run time: `mushroom` 0.1 s (8 MB), `adult` 1.7 s (299 MB).
+- Result: in `voting`, one record has all 16 values missing. It is tolerant to all records, so only 33% of the records have one decision. Without the records with 8 or more missing values, 98% of the records have one decision. The tolerance relation is sensitive to records with many missing values.
 
 ### State for the next session
 
@@ -75,7 +83,7 @@
   1. A1: complete.
   2. A2: complete.
   3. A3: complete.
-  4. A4-A5: `src/rough.py` (discretization, tolerance classes, approximations, generalized decision).
+  4. A4-A5: complete.
   5. A6: tests and a Kaggle CPU job with the run times.
   6. A7-A9: `docs/design.md`, the presentation of part 1, chapters 1, 2, 5 and 8 of the final documentation.
 - Open decisions for A1-A5: the method of the discretization, the distance and the weights of kNN for symbolic attributes, the form of the bit sets for the tolerance classes.
