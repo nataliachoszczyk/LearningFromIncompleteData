@@ -73,17 +73,27 @@
   - On `voting`, `car`, `hepatitis` and `wdbc` (with MCAR), the bit sets are equal to a direct calculation of SIM, also for a subset of the attributes.
   - Run time: `mushroom` 0.1 s (8 MB), `adult` 1.7 s (299 MB).
 - Result: in `voting`, one record has all 16 values missing. It is tolerant to all records, so only 33% of the records have one decision. Without the records with 8 or more missing values, 98% of the records have one decision. The tolerance relation is sensitive to records with many missing values.
+- A6: added `tests/test_core.py` (15 pytest tests of A1-A5, 5.5 s on the local CPU) and `pytest` to `requirements.txt`. All tests pass.
+- A6: added the job `2026-11-26_03_timing`. It measures the run time of `impute_knn` and `tolerance_classes` for the number of records, the number of attributes, the fraction of missing values and k.
+- A7: added `docs/design.md`, the design document of the complete implementation (also the planned modules of B1-B4): scope, technologies, structure with references to the papers, data structures, efficiency and test plan.
+- The job `timing` is complete (37 minutes). Downloaded `timing.csv` and `info.json`. Results:
+  - `adult` with 45222 records: kNN 434 s, tolerance classes 1.8 s. From 20000 to 45222 records, both times grow approximately with n^2.
+  - The times grow approximately linearly with the number of attributes.
+  - The time of the tolerance classes does not depend on the fraction of missing values. The mean size of a tolerance class grows fast: `car` 1 (0%), 134 (30%), 535 (50%).
+  - k = 1-50 has no effect on the time of kNN.
+- Added the measured run times to section 6.1 of `docs/design.md`.
 
 ### State for the next session
 
 - Branch: `part1` (pushed). The Kaggle account is `nataliachoszczyk`. The data is in the private dataset `nataliachoszczyk/med-datasets`.
-- Jobs: `2026-11-26_01_smoke` and `2026-11-26_02_data` are complete. The next job number is 03.
+- Jobs: `01_smoke`, `02_data` and `03_timing` are complete. The next job number is 04.
 - `src/data.py` has `DATASETS`, `download_all()` and `data_dir()`. Local data: put a copy of the dataset into `data/` (not in git), or download it with `bash jobs/kaggle.sh datasets download nataliachoszczyk/med-datasets -p data --unzip`.
 - Next steps of the half A (`docs/PLAN.md`):
   1. A1: complete.
   2. A2: complete.
   3. A3: complete.
   4. A4-A5: complete.
-  5. A6: tests and a Kaggle CPU job with the run times.
-  6. A7-A9: `docs/design.md`, the presentation of part 1, chapters 1, 2, 5 and 8 of the final documentation.
+  5. A6: complete.
+  6. A7: complete. Check the definitions of c_ij (Kryszkiewicz) and of the normalized RMS error (Troyanskaya) in the PDF files.
+  7. A8-A9: the presentation of part 1, chapters 1, 2, 5 and 8 of the final documentation.
 - Open decisions for A1-A5: the method of the discretization, the distance and the weights of kNN for symbolic attributes, the form of the bit sets for the tolerance classes.
