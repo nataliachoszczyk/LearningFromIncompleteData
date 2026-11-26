@@ -62,7 +62,7 @@ def impute_knn(df: pd.DataFrame, k: int = 10) -> pd.DataFrame:
     """Replace each missing value with an estimate from the k nearest records that have this value.
 
     A numeric value is the weighted mean, a symbolic value is the weighted mode of the neighbours.
-    The weight of a neighbour is 1 / distance, as in Troyanskaya et al.
+    The weight of a neighbour is 1 / distance. Troyanskaya et al. weight by similarity, but give no formula.
     If no record has a finite distance, the function uses the mean or the mode.
     """
     values, is_numeric, attributes = _encode(df)

@@ -82,6 +82,12 @@
   - The time of the tolerance classes does not depend on the fraction of missing values. The mean size of a tolerance class grows fast: `car` 1 (0%), 134 (30%), 535 (50%).
   - k = 1-50 has no effect on the time of kNN.
 - Added the measured run times to section 6.1 of `docs/design.md`.
+- Read the two papers with `pypdf` in a temporary uv environment (`uv run --no-project --with pypdf`). `requirements.txt` does not change. Results:
+  - Kryszkiewicz (1998): the definitions of SIM, the tolerance class S_A(x), the approximations and the generalized decision agree with `src/rough.py`. The discernibility function for x is Δ*(x) = Π Σ α_AT(x, y) over the y with d(y) ∉ ∂_AT(x). α_AT(x, y) has the attributes with both values known and different. Examples 4.2 and 5.2 give the expected reducts and rules of Table 2 for the tests of B1-B2.
+  - Troyanskaya et al. (2001): the normalized RMS error is the RMS difference divided by the mean of the complete data. The paper weights the neighbours by similarity, but gives no formula. The paper uses the Euclidean distance. Its row average is the mean of a gene (a row), not of a column.
+- Fixed the docstring of `impute_knn`: the weight 1 / distance is our selection, not a formula of the paper.
+- Decision: the design document of part 1 is in Polish. Renamed `docs/design.md` to `docs/SUMMARY.md` and translated it. The final documentation and the presentations are also in Polish. The README is in English.
+- Added the corrections from the papers to `docs/SUMMARY.md`: the notation of Kryszkiewicz (S_A(x), α_AT(x, y), Δ*(x)), the differences from Troyanskaya et al. and the expected reducts and rules of Table 2.
 
 ### State for the next session
 
@@ -94,6 +100,6 @@
   3. A3: complete.
   4. A4-A5: complete.
   5. A6: complete.
-  6. A7: complete. Check the definitions of c_ij (Kryszkiewicz) and of the normalized RMS error (Troyanskaya) in the PDF files.
+  6. A7: complete (`docs/SUMMARY.md`, Polish).
   7. A8-A9: the presentation of part 1, chapters 1, 2, 5 and 8 of the final documentation.
 - Open decisions for A1-A5: the method of the discretization, the distance and the weights of kNN for symbolic attributes, the form of the bit sets for the tolerance classes.
