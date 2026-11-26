@@ -32,3 +32,5 @@
 - Renamed the branch `rough-set-knn` to `part1`.
 - Added `src/data.py`: the URLs of the datasets, `download_all()` and `data_dir()`. A local test downloaded all 6 datasets.
 - Added the job `2026-11-26_02_data`. It downloads the datasets on a Kaggle CPU kernel.
+- The job `data` is complete (1 minute). Made the private dataset `nataliachoszczyk/med-datasets` from its output with the Kaggle CLI (`datasets create --dir-mode zip`). Kaggle extracted each folder, so the dataset has the folders `adult/`, `car/`, `hepatitis/`, `mushroom/`, `voting/`, `wdbc/` and `manifest.json`. License: CC BY 4.0 (UCI).
+- Problem: the Kaggle CLI on Windows fails with a Git Bash path (`C:/...`). Give it a Windows path (`cygpath -w`).

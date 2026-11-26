@@ -1,0 +1,65 @@
+{
+  "voting": {
+    "url": "https://archive.ics.uci.edu/static/public/105/congressional+voting+records.zip",
+    "sha256_zip": "ffec9d9328f28f151d95d2f8d36fd94ed8d2b0cdd0c9bd284bd8e65031a5e6a6",
+    "files": {
+      "Index": 135,
+      "house-votes-84.data": 18171,
+      "house-votes-84.names": 6868
+    }
+  },
+  "hepatitis": {
+    "url": "https://archive.ics.uci.edu/static/public/46/hepatitis.zip",
+    "sha256_zip": "8573c2898714fb32ef8162291dcabd483a1ba9701123cab262f5acace3112d87",
+    "files": {
+      "Index": 147,
+      "costs/Index": 230,
+      "costs/hepatitis.README": 2109,
+      "costs/hepatitis.cost": 301,
+      "costs/hepatitis.delay": 405,
+      "costs/hepatitis.expense": 415,
+      "costs/hepatitis.group": 75,
+      "hepatitis.data": 7545,
+      "hepatitis.names": 3098
+    }
+  },
+  "mushroom": {
+    "url": "https://archive.ics.uci.edu/static/public/73/mushroom.zip",
+    "sha256_zip": "face32f32647e0d939f6233f36dd30dd5d619ae9f3f9b8e10bea4ac7e1f60b1a",
+    "files": {
+      "Index": 193,
+      "README": 853,
+      "agaricus-lepiota.data": 373704,
+      "agaricus-lepiota.names": 6816,
+      "expanded.Z": 111577
+    }
+  },
+  "car": {
+    "url": "https://archive.ics.uci.edu/static/public/19/car+evaluation.zip",
+    "sha256_zip": "1559d51dcf327f4f8c71b711ceed7fd95a382fc8d8e1998667f4f23b82860403",
+    "files": {
+      "car.c45-names": 276,
+      "car.data": 51867,
+      "car.names": 3097
+    }
+  },
+  "wdbc": {
+    "url": "https://archive.ics.uci.edu/static/public/17/breast+cancer+wisconsin+diagnostic.zip",
+    "sha256_zip": "bc154869ef13f753f9e2b5a17e248cfe1ba4b6721db7c4da9f4880e40b05d3af",
+    "files": {
+      "wdbc.data": 124103,
+      "wdbc.names": 4708
+    }
+  },
+  "adult": {
+    "url": "https://archive.ics.uci.edu/static/public/2/adult.zip",
+    "sha256_zip": "7537312dd56c2b98035880805ce99e68183a30ee468aa5329d6df0fbb3cc21bb",
+    "files": {
+      "Index": 140,
+      "adult.data": 3974305,
+      "adult.names": 5229,
+      "adult.test": 2003153,
+      "old.adult.names": 4267
+    }
+  }
+}
