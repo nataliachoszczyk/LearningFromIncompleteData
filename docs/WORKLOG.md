@@ -34,3 +34,21 @@
 - Added the job `2026-11-26_02_data`. It downloads the datasets on a Kaggle CPU kernel.
 - The job `data` is complete (1 minute). Made the private dataset `nataliachoszczyk/med-datasets` from its output with the Kaggle CLI (`datasets create --dir-mode zip`). Kaggle extracted each folder, so the dataset has the folders `adult/`, `car/`, `hepatitis/`, `mushroom/`, `voting/`, `wdbc/` and `manifest.json`. License: CC BY 4.0 (UCI).
 - Problem: the Kaggle CLI on Windows fails with a Git Bash path (`C:/...`). Give it a Windows path (`cygpath -w`).
+- Added `docs/PLAN.md` (local only, not in git): the plan of the project in two halves. Half A: the base of the code and part 1. Half B: the rules, the experiments and part 2.
+- Added `docs/*.pdf` (the papers) and `docs/PLAN.md` (the plan) to `.gitignore`. These files are local only.
+- Decision: the plan has two persons who work one after the other. Person A does the first half (weekend 1), person B the second half (weekend 2). Person A needs nothing from person B. The details are in `docs/PLAN.md`.
+- Natalia does the half A. The work on it starts on 2026-11-26.
+
+### State for the next session
+
+- Branch: `part1` (pushed). The Kaggle account is `nataliachoszczyk`. The data is in the private dataset `nataliachoszczyk/med-datasets`.
+- Jobs: `2026-11-26_01_smoke` and `2026-11-26_02_data` are complete. The next job number is 03.
+- `src/data.py` has `DATASETS`, `download_all()` and `data_dir()`. Local data: put a copy of the dataset into `data/` (not in git), or download it with `bash jobs/kaggle.sh datasets download nataliachoszczyk/med-datasets -p data --unzip`.
+- Next steps of the half A (`docs/PLAN.md`):
+  1. A1: `load_dataset(name)` in `src/data.py`.
+  2. A2: `src/missing.py` (MCAR simulation).
+  3. A3: `src/impute.py` (kNN, mean and mode, normalized RMS error).
+  4. A4-A5: `src/rough.py` (discretization, tolerance classes, approximations, generalized decision).
+  5. A6: tests and a Kaggle CPU job with the run times.
+  6. A7-A9: `docs/design.md`, the presentation of part 1, chapters 1, 2, 5 and 8 of the final documentation.
+- Open decisions for A1-A5: the method of the discretization, the distance and the weights of kNN for symbolic attributes, the form of the bit sets for the tolerance classes.

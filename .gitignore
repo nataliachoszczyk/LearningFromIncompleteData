@@ -32,3 +32,6 @@ jobs/runs/*/output/**/*.zip
 
 # Papers: copyright, the repository is public
 docs/*.pdf
+
+# Local plan of the team
+docs/PLAN.md
