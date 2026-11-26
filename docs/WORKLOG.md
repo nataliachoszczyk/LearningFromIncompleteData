@@ -53,6 +53,8 @@
   | `car` | 1728 | 6 | 0 | 0% | 0% |
   | `wdbc` | 569 | 30 | 30 | 0% | 0% |
   | `adult` | 48842 | 14 | 6 | 0.95% | 7.4% |
+- A2: added `src/missing.py` with `add_mcar(df, fraction, seed)`. It removes the given fraction of the known attribute values at random and never removes the class. It returns the new table and a boolean mask of the removed values. The mask gives the true values for the error of an imputation.
+- A local test on `car`, `wdbc` and `voting` (0%, 5%, 30%, 50%): the removed fraction is correct, the class and the types of the columns do not change, the same seed gives the same table.
 
 ### State for the next session
 
@@ -61,7 +63,7 @@
 - `src/data.py` has `DATASETS`, `download_all()` and `data_dir()`. Local data: put a copy of the dataset into `data/` (not in git), or download it with `bash jobs/kaggle.sh datasets download nataliachoszczyk/med-datasets -p data --unzip`.
 - Next steps of the half A (`docs/PLAN.md`):
   1. A1: complete.
-  2. A2: `src/missing.py` (MCAR simulation).
+  2. A2: complete.
   3. A3: `src/impute.py` (kNN, mean and mode, normalized RMS error).
   4. A4-A5: `src/rough.py` (discretization, tolerance classes, approximations, generalized decision).
   5. A6: tests and a Kaggle CPU job with the run times.
