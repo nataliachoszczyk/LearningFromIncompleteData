@@ -29,3 +29,6 @@ jobs/runs/*/output/**/*.npz
 jobs/runs/*/output/**/*.pkl
 jobs/runs/*/output/**/*.log
 jobs/runs/*/output/**/*.zip
+
+# Papers: copyright, the repository is public
+docs/*.pdf
